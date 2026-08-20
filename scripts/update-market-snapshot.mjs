@@ -72,16 +72,16 @@ async function nasdaqHistory(ticker) {
 }
 
 const yahooCache = new Map();
-async function yahooFundData(ticker) {
+async function yahooData(ticker) {
   if (!yahooCache.has(ticker)) yahooCache.set(ticker, (async () => {
     const period1 = Math.floor(new Date(`${historyStartIso}T00:00:00Z`).getTime() / 1000);
     const period2 = Math.floor(new Date(`${isoDate}T23:59:59Z`).getTime() / 1000);
     const payload = await fetchJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1d&events=history`);
     const result = payload?.chart?.result?.[0];
-    if (!result) throw new Error("no mutual-fund chart data");
+    if (!result) throw new Error("no Yahoo chart data");
     const closes = result.indicators?.adjclose?.[0]?.adjclose || result.indicators?.quote?.[0]?.close || [];
     const history = (result.timestamp || []).map((timestamp, index) => [new Date(timestamp * 1000).toISOString().slice(0, 10), closes[index] == null ? NaN : Number(closes[index]), 0]).filter(row => Number.isFinite(row[1]) && row[1] > 0);
-    if (history.length < 2) throw new Error("insufficient mutual-fund history");
+    if (history.length < 2) throw new Error("insufficient Yahoo history");
     const latest = history.at(-1), previous = history.at(-2), change = latest[1] - previous[1];
     return { quote: { price: latest[1], change, changePct: change / previous[1] * 100, asOf: latest[0] }, history };
   })());
@@ -94,7 +94,7 @@ async function marketChart(ticker) {
     if (mutualFunds.has(ticker) && !(result.quote.price > 0)) throw new Error("invalid mutual-fund quote");
     return result;
   }
-  catch (error) { if (mutualFunds.has(ticker)) { const result = await yahooFundData(ticker); return { quote: result.quote, intraday: [] }; } throw error; }
+  catch { const result = await yahooData(ticker); return { quote: result.quote, intraday: [] }; }
 }
 async function marketHistory(ticker) {
   try {
@@ -102,7 +102,7 @@ async function marketHistory(ticker) {
     if (mutualFunds.has(ticker) && result.length < 2) throw new Error("invalid mutual-fund history");
     return result;
   }
-  catch (error) { if (mutualFunds.has(ticker)) return (await yahooFundData(ticker)).history; throw error; }
+  catch { return (await yahooData(ticker)).history; }
 }
 
 async function nasdaqOptions(ticker) {
